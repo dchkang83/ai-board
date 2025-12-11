@@ -38,11 +38,29 @@ ai-board/
 ```
 
 ## API Endpoints
+
+### 기본
 - `GET /health` - 서버 상태 확인
+
+### Items (샘플)
 - `GET /api/items` - 모든 아이템 조회
 - `GET /api/items/{id}` - 특정 아이템 조회
 - `POST /api/items` - 아이템 생성
 - `DELETE /api/items/{id}` - 아이템 삭제
+
+### 게시판 (Posts)
+- `GET /api/posts` - 게시글 목록 조회 (최신순)
+- `GET /api/posts/{id}` - 게시글 상세 조회 (조회수 증가)
+- `POST /api/posts` - 게시글 등록 (비밀번호 필수)
+- `PUT /api/posts/{id}` - 게시글 수정 (비밀번호 검증)
+- `DELETE /api/posts/{id}` - 게시글 삭제 (비밀번호 검증)
+- `POST /api/posts/{id}/verify-password` - 비밀번호 검증
+
+### 댓글 (Comments)
+- `GET /api/posts/{post_id}/comments` - 댓글 목록 조회
+- `POST /api/posts/{post_id}/comments` - 댓글/대댓글 등록 (parent_id로 구분)
+- `PUT /api/comments/{id}` - 댓글 수정 (비밀번호 검증)
+- `DELETE /api/comments/{id}` - 댓글 삭제 (비밀번호 검증)
 
 ## Common Commands
 
@@ -87,13 +105,46 @@ cp .env.example .env
 # .env 파일에 SUPABASE_URL과 SUPABASE_KEY 입력
 ```
 
-### 3. items 테이블 생성 (Supabase SQL Editor)
+### 3. 테이블 생성 (Supabase SQL Editor)
+
+`backend/schema.sql` 파일 참조 또는 아래 SQL 실행:
+
 ```sql
+-- items 테이블
 CREATE TABLE items (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT
 );
+
+-- 게시글 테이블
+CREATE TABLE posts (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    author_name VARCHAR(100) NOT NULL DEFAULT '익명',
+    password VARCHAR(255) NOT NULL,
+    view_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 댓글 테이블 (대댓글 지원)
+CREATE TABLE comments (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    author_name VARCHAR(100) NOT NULL DEFAULT '익명',
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 인덱스
+CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX idx_comments_post_id ON comments(post_id);
+CREATE INDEX idx_comments_parent_id ON comments(parent_id);
 ```
 
 ## Slash Commands (Skills)
