@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from database import get_supabase
 
 app = FastAPI(title="AI Board API", version="1.0.0")
 
@@ -20,16 +21,14 @@ class HealthResponse(BaseModel):
 
 
 class Item(BaseModel):
-    id: int
+    id: int | None = None
     name: str
     description: str | None = None
 
 
-# 샘플 데이터
-items_db: list[Item] = [
-    Item(id=1, name="Item 1", description="First item"),
-    Item(id=2, name="Item 2", description="Second item"),
-]
+class ItemCreate(BaseModel):
+    name: str
+    description: str | None = None
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -41,29 +40,34 @@ def health_check():
 @app.get("/api/items", response_model=list[Item])
 def get_items():
     """모든 아이템 조회"""
-    return items_db
+    supabase = get_supabase()
+    response = supabase.table("items").select("*").execute()
+    return response.data
 
 
 @app.get("/api/items/{item_id}", response_model=Item)
 def get_item(item_id: int):
     """특정 아이템 조회"""
-    for item in items_db:
-        if item.id == item_id:
-            return item
-    from fastapi import HTTPException
-    raise HTTPException(status_code=404, detail="Item not found")
+    supabase = get_supabase()
+    response = supabase.table("items").select("*").eq("id", item_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return response.data[0]
 
 
 @app.post("/api/items", response_model=Item, status_code=201)
-def create_item(item: Item):
+def create_item(item: ItemCreate):
     """새 아이템 생성"""
-    items_db.append(item)
-    return item
+    supabase = get_supabase()
+    response = supabase.table("items").insert(item.model_dump()).execute()
+    return response.data[0]
 
 
 @app.delete("/api/items/{item_id}", status_code=204)
 def delete_item(item_id: int):
     """아이템 삭제"""
-    global items_db
-    items_db = [item for item in items_db if item.id != item_id]
+    supabase = get_supabase()
+    response = supabase.table("items").delete().eq("id", item_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Item not found")
     return None
